@@ -31,7 +31,8 @@ W, S, E, N = map(float, sys.argv[1:5])
 OUT = sys.argv[5]
 WORK = sys.argv[6] if len(sys.argv) > 6 else os.path.dirname(os.path.abspath(OUT))
 RES = float(os.environ.get("FOREST_RES", "5"))
-SIEVE = int(os.environ.get("FOREST_SIEVE", "24"))
+SIEVE = int(os.environ.get("FOREST_SIEVE", "120"))      # pixels: 120 x 25 m² = 0.3 ha
+MAJORITY = int(os.environ.get("FOREST_MAJORITY", "7"))  # window (pixels) of the majority filter for the satellite maps
 UA = {"User-Agent": "LoriMaps-render (+https://github.com/lorenzdenk/render-opentopomaps-var)"}
 
 THUENEN = "/vsicurl/https://download.geoservice.dlr.de/TREE_SPECIES_DE/files/treespecies_de_2022.tif"
@@ -128,6 +129,20 @@ def check_thurgau_codes(feats):
             print(f"  Thurgau code {c}: WMS check failed {e}", flush=True)
 
 
+def majority(cls, mask, size):
+    """Most frequent class in a size x size window, only where mask (the 10 m satellite classes are noisy pixel by pixel)."""
+    r = size // 2
+    best, best_n = cls.copy(), np.zeros(cls.shape, np.int32)
+    for k in range(1, 9):
+        a = np.pad((cls == k).astype(np.int32), r)
+        c = a.cumsum(0).cumsum(1)
+        c = np.pad(c, ((1, 0), (1, 0)))
+        n = c[size:, size:] - c[:-size, size:] - c[size:, :-size] + c[:-size, :-size]
+        better = n > best_n
+        best[better], best_n[better] = k, n[better]
+    return np.where(mask & (best_n > 0), best, cls)
+
+
 def main():
     t0 = time.time()
     os.makedirs(WORK, exist_ok=True)
@@ -168,7 +183,11 @@ def main():
     except Exception as e:
         print("WARN: Thünen failed:", e, flush=True)
 
-    # 1) Thurgau stands
+    sat = cls > 0
+    cls = majority(cls, sat, MAJORITY)
+    print(f"majority filter {MAJORITY} x {MAJORITY} px on the satellite classes", flush=True)
+
+    # 1) Thurgau stands (real stand boundaries: no filter)
     try:
         path = os.path.join(WORK, "thurgau_stands.geojson")
         feats = thurgau(path)
