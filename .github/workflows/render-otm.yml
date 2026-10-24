@@ -30,20 +30,29 @@ jobs:
           n=${GITHUB_SHARDS:-1}; [ "$MODE" = tiles ] || n=1
           echo "count=$n" >> "$GITHUB_OUTPUT"
           echo "shards=$(python3 -c "import json;print(json.dumps(list(range($n))))")" >> "$GITHUB_OUTPUT"
-      - name: Prepare national hillshades
-        # downloaded once here (release "hillshade-data"), so the render jobs do not all fetch the same tiles
+      - name: Prepare hillshades, fine elevation model and forest types
+        # made once here (releases "hillshade-data", "prepared-data"), so the render jobs do not all fetch the same data
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
           source render/region.env
           need=""
-          for r in $REGIONS; do (REGION=$r; source render/regions/$r.env; [ -n "${HILLSHADE_SOURCES:-}" ]) && need=1; done
+          for r in $REGIONS; do (source render/regions/$r.env; [ -n "${HILLSHADE_SOURCES:-}" ] || [ "${FINE_DEM:-0}" = 1 ] || [ "${FOREST_TYPES:-0}" = 1 ]) && need=1; done
           [ -n "$need" ] || exit 0
           sudo apt-get update -qq && sudo apt-get install -y -qq python3-gdal python3-numpy python3-pil gdal-bin bc
           mkdir -p logs
           for r in $REGIONS; do
-            REGION=$r bash render/data/hillshade_cache.sh "$RUNNER_TEMP/hs" 2>&1 | tee -a logs/hillshade.log
+            REGION=$r bash render/data/hillshade_cache.sh "$RUNNER_TEMP/hs" 2>&1 | tee -a logs/prepare.log || true
+            ( source render/regions/$r.env
+              [ "${FINE_DEM:-0}" = 1 ] && REGION=$r bash render/data/prepared.sh fine-dem "$RUNNER_TEMP/prep" 2>&1 | tee -a logs/prepare.log || true
+              [ "${FOREST_TYPES:-0}" = 1 ] && REGION=$r bash render/data/prepared.sh forest "$RUNNER_TEMP/prep" 2>&1 | tee -a logs/prepare.log || true
+              true )
           done
+      - name: Publish prepare log
+        if: always()
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: '[ -d logs ] && bash render/push_logs.sh logs "prepare ${{ github.run_id }} ${{ job.status }}" prepare-logs || true'
 
   render:
     needs: plan

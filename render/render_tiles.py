@@ -186,6 +186,8 @@ def main():
         "attribution": "Kartendaten: © OpenStreetMap-Mitwirkende, Copernicus DEM (© DLR e.V. 2010-2014 and © Airbus Defence and Space GmbH 2014-2018 provided under COPERNICUS by the European Union and ESA)"
                        + (" | Schummerung: © swisstopo" if "swisstopo" in os.environ.get("HILLSHADE_SOURCES", "") else "")
                        + (" | Schummerung: © GeoBasis-DE / BKG (CC BY 4.0)" if "basemapde" in os.environ.get("HILLSHADE_SOURCES", "") else "")
+                       + (" | Höhenlinien: swissALTI3D © swisstopo, DGM1 LGL (www.lgl-bw.de, dl-de/by-2-0)" if os.environ.get("FINE_DEM") == "1" else "")
+                       + (" | Waldtypen: DLR/Thünen-Institut (CC BY 4.0), Kanton Thurgau, BAFU" if os.environ.get("FOREST_TYPES") == "1" else "")
                        + (" | Vegetation: TASVEG 5.0 from www.theLIST.tas.gov.au ©State of Tasmania (CC BY 3.0 AU)" if os.environ.get("TASVEG") == "1" else "")
                        + " | Kartendarstellung: © OpenTopoMap (CC-BY-SA)",
         "bounds": f"{w},{s},{e},{n}",

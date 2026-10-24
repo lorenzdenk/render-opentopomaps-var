@@ -13,6 +13,16 @@ an die Helligkeit der OTM-Schummerung an und legt sie mit weichem Übergang übe
 beider Länder bleibt die 30-m-Schummerung. `tools/shader_preview.py` (Workflow „Hillshade preview“) vergleicht die
 Varianten an einigen Orten (Branch `shader-preview`).
 
+**Höhenlinien** (`FINE_DEM=1`): aus swissALTI3D 2 m (Schweiz, STAC von data.geo.admin.ch) und dem DGM1 des LGL
+(Baden-Württemberg, INSPIRE-WCS, dl-de/by-2-0), auf 6 m zusammengesetzt und leicht geglättet
+(`render/data/fine_dem.py`); ausserhalb bleibt Copernicus 30 m.
+
+**Waldtypen** (`FOREST_TYPES=1`): OSM-Wald eingefärbt nach Hauptbaumart (`render/forest/`): Thurgau aus der
+forstlichen Bestandeskarte (WFS), Deutschland aus der Baumartenkarte 2022 von DLR/Thünen (10 m, CC BY 4.0), übrige
+Schweiz aus dem BAFU-Waldmischungsgrad (Laubholzanteil < 40 % = Nadelwald). Farben in `customize_style.py`
+(`FOREST_COLOURS`): Fichte/Douglasie/Tanne #6E9F80, Kiefer #A3B894, Lärche #C6D85F, Buche #86C46C, Eiche #CDBF7A,
+Birke #DDEBB5, Rest #B9D984, Kahlfläche #E6E0C6. Vorbereitete Raster liegen im Release `prepared-data`.
+
 Testregion: `regions/mainau-weinfelden.env` (Quadrat Insel Mainau – Weinfelden, bis z17).
 
 ---

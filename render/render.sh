@@ -17,7 +17,7 @@ HERE="$(cd "$(dirname "$0")" && pwd)"
 USER="${USER:-$(id -un)}"   # not set in Docker
 source "$HERE/region.env"
 export TASVEG="${TASVEG:-0}"
-export HILLSHADE_SOURCES="${HILLSHADE_SOURCES:-}"
+export HILLSHADE_SOURCES="${HILLSHADE_SOURCES:-}" FINE_DEM="${FINE_DEM:-0}" FOREST_TYPES="${FOREST_TYPES:-0}"
 export OVERLAYS="${OVERLAYS:-}" LIST_PLUS="${LIST_PLUS:-0}" LIST_HYDRO="${LIST_HYDRO:-0}"   # with the walks overlay, giant trees and camp sites move from the map into it
 WORK="${WORK:-$HOME/work}"
 OTM="$WORK/OpenTopoMap"
@@ -145,6 +145,13 @@ if [ "${TASVEG:-0}" = 1 ]; then
   bash "$HERE/tasveg/import_tasveg.sh" "$WORK" "$BW" "$BS" "$BE" "$BN"
 fi
 
+# ---------------------------------------------------------------- forest types (Germany / Switzerland, option)
+if [ "${FOREST_TYPES:-0}" = 1 ]; then
+  step "Importing forest types"
+  bash "$HERE/forest/import_forest.sh" "$WORK" || { echo "WARN: forest types failed, OSM forest only"
+    psql -q -d gis -c "CREATE TABLE IF NOT EXISTS forest_type (cls int, way geometry(Geometry, 3857));"; }
+fi
+
 # ---------------------------------------------------------------- LIST transport segments (Tasmania, option)
 if [ -n "${LIST_TRACKS:-}" ]; then
   step "Importing LIST transport segments (variant $LIST_TRACKS)"
@@ -238,11 +245,20 @@ if [ "${LIST_CONTOURS:-0}" = 1 ]; then
   bash "$HERE/list/list_data.sh" "$WORK" "$BW" "$BS" "$BE" "$BN" contours 16 "ELEVATION" contours contours \
     -nlt LINESTRING -explodecollections -dialect OGRSQL -sql "SELECT ELEVATION AS ele FROM contours"
 else
-  gdal_contour -q -a ele -i 10 -f GPKG warp-30.tif "$WORK/contours.gpkg"
+  # Germany / Switzerland: contours from swissALTI3D and the LGL DGM1 (data/fine_dem.py), Copernicus only outside them
+  CONTOUR_DEM=warp-30.tif
+  if [ "${FINE_DEM:-0}" = 1 ]; then
+    FD=$(bash "$HERE/data/prepared.sh" fine-dem "$WORK/prep") && CONTOUR_DEM="$FD" && echo "contours from the fine elevation model" \
+      || echo "WARN: fine elevation model not available, contours from the 30 m DEM"
+  fi
+  rm -f "$WORK/contours.gpkg"
+  gdal_contour -q -a ele -i 10 -f GPKG "$CONTOUR_DEM" "$WORK/contours.gpkg"
   ogr2ogr --config PG_USE_COPY YES -gt 100000 -f PostgreSQL PG:dbname=contours "$WORK/contours.gpkg" -nln contours -a_srs EPSG:3857 \
     -lco GEOMETRY_NAME=way -nlt LINESTRING -explodecollections -overwrite
 fi
 psql -q -d contours -c "ALTER TABLE contours ALTER COLUMN ele TYPE integer USING round(ele)::integer; DELETE FROM contours WHERE ST_Length(way) < 20;"
+# the fine contours have a point every few metres: 1.5 m tolerance is invisible and saves most of them
+[ "${FINE_DEM:-0}" = 1 ] && psql -q -d contours -c "UPDATE contours SET way = ST_SimplifyPreserveTopology(way, 1.5);"
 # contour lines from gdal_contour are very long (whole mountain sides, 100 000+ points) and every tile
 # fetched them completely: 90-97 % of the render time. Split into pieces of at most 1000 points
 # (long enough for the height labels, which need a minimum line length).

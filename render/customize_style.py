@@ -512,6 +512,24 @@ if TASVEG:
     trees = layer("own-tasveg-trees", ["own-tasveg-trees"], "(SELECT way, area, notable_tr FROM tasveg_notable) AS tvt")
     xml = patch("</Map>", trees + "\n</Map>", "TASVEG notable trees")
 
+# ---------------------------------------------------------------- forest types (Germany / Switzerland, option)
+# FOREST_TYPES=1: OSM forest coloured by main tree species (render/forest/import_forest.sh), colours agreed with the user
+FOREST_COLOURS = {1: "#6E9F80",   # spruce / Douglas fir / fir: dark blue-green
+                  2: "#A3B894",   # pine: grey olive green
+                  3: "#C6D85F",   # larch: lime yellow
+                  4: "#86C46C",   # beech: fresh green
+                  5: "#CDBF7A",   # oak: warm ochre
+                  6: "#DDEBB5",   # birch: light green
+                  7: "#B9D984",   # other / no information: OpenTopoMap forest green
+                  8: "#E6E0C6"}   # canopy loss (clearing): light beige
+if os.environ.get("FOREST_TYPES") == "1":
+    ft_rules = "".join(f'<Rule>&maxscale_zoom11;<Filter>[cls] = {k}</Filter><PolygonSymbolizer fill="{c}" gamma="0.5"/></Rule>'
+                       for k, c in FOREST_COLOURS.items())
+    ft_layers = "\n".join([f'<Style name="own-foresttype">{ft_rules}</Style>',
+                           layer("own-foresttype", ["own-foresttype"], "(SELECT way, cls FROM forest_type) AS ft")])
+    # over the OSM land use (the forest is drawn there first), below the hillshade and everything else
+    xml = patch("\n\t&hillshade;", "\n" + ft_layers + "\n\t&hillshade;", "forest type layer")
+
 # ---------------------------------------------------------------- own points: giant trees (render/pois/tasmanien_baeume.csv)
 # golden star from zoom 9, name from zoom 12 (with MAGNIFY=2 shown from 10 and 13)
 import csv as _csv
