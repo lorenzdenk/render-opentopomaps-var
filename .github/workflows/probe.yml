@@ -1,0 +1,22 @@
+name: Data probe
+# Runs tools/probe_tg_forest.py and publishes the output to the branch "probe-logs".
+on:
+  push:
+    branches: [main]
+    paths: ['tools/probe_tg_forest.py', '.github/workflows/probe.yml']
+  workflow_dispatch:
+permissions:
+  contents: write
+jobs:
+  probe:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v4
+      - name: Probe
+        run: mkdir -p logs && python3 tools/probe_tg_forest.py logs 2>&1 | tee logs/probe.log
+      - name: Publish
+        if: always()
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: bash render/push_logs.sh logs "probe ${{ github.run_id }} ${{ job.status }}" probe-logs
