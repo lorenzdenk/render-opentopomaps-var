@@ -1,0 +1,33 @@
+swisstopo layer ch.swisstopo.swissalti3d-reliefschattierung: https://wmts.geo.admin.ch/1.0.0/ch.swisstopo.swissalti3d-reliefschattierung/default/current/3857/{z}/{x}/{y}.png (tile matrix set 3857_18)
+swisstopo layer ch.swisstopo.swissalti3d-reliefschattierung_monodirektional: https://wmts.geo.admin.ch/1.0.0/ch.swisstopo.swissalti3d-reliefschattierung_monodirektional/default/current/3857/{z}/{x}/{y}.png (tile matrix set 3857_18)
+Feldberg (Schwarzwald): OTM bisher (Copernicus 30 m): ok
+Feldberg (Schwarzwald): basemap.de Hillshade: ok
+Feldberg (Schwarzwald): basemap.de Combshade: ok
+Feldberg (Schwarzwald): swisstopo ch.swisstopo.swissalti3d-reliefschattierung: ok
+Feldberg (Schwarzwald): swisstopo monodirektional: ok
+Albtrauf Hohenneuffen: OTM bisher (Copernicus 30 m): ok
+Albtrauf Hohenneuffen: basemap.de Hillshade: ok
+Albtrauf Hohenneuffen: basemap.de Combshade: ok
+Albtrauf Hohenneuffen: swisstopo ch.swisstopo.swissalti3d-reliefschattierung: ok
+Albtrauf Hohenneuffen: swisstopo monodirektional: ok
+Kreuzlingen/Konstanz (Grenze): OTM bisher (Copernicus 30 m): ok
+Kreuzlingen/Konstanz (Grenze): basemap.de Hillshade: ok
+Kreuzlingen/Konstanz (Grenze): basemap.de Combshade: ok
+Kreuzlingen/Konstanz (Grenze): swisstopo ch.swisstopo.swissalti3d-reliefschattierung: ok
+Kreuzlingen/Konstanz (Grenze): swisstopo monodirektional: ok
+Thurgau Seerücken: OTM bisher (Copernicus 30 m): ok
+Thurgau Seerücken: basemap.de Hillshade: ok
+Thurgau Seerücken: basemap.de Combshade: ok
+Thurgau Seerücken: swisstopo ch.swisstopo.swissalti3d-reliefschattierung: ok
+Thurgau Seerücken: swisstopo monodirektional: ok
+Säntis (Alpstein): OTM bisher (Copernicus 30 m): ok
+Säntis (Alpstein): basemap.de Hillshade: ok
+Säntis (Alpstein): basemap.de Combshade: ok
+Säntis (Alpstein): swisstopo ch.swisstopo.swissalti3d-reliefschattierung: ok
+Säntis (Alpstein): swisstopo monodirektional: ok
+Lauterbrunnen: OTM bisher (Copernicus 30 m): ok
+Lauterbrunnen: basemap.de Hillshade: ok
+Lauterbrunnen: basemap.de Combshade: ok
+Lauterbrunnen: swisstopo ch.swisstopo.swissalti3d-reliefschattierung: ok
+Lauterbrunnen: swisstopo monodirektional: ok
+done
