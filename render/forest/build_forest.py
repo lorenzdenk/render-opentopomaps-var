@@ -150,6 +150,12 @@ def main():
 
     # 2) Germany: tree species
     try:
+        qml = get(THUENEN.replace("/vsicurl/", "").replace(".tif", ".qml")).decode("utf-8", "replace")
+        import re as _re
+        print("Thünen legend (qml):", _re.findall(r'<(?:paletteEntry|item)[^>]*>', qml)[:20], flush=True)
+    except Exception as e:
+        print("Thünen legend not read:", e, flush=True)
+    try:
         a = warp(THUENEN, bounds, cols, rows)
         lut = np.zeros(1024, np.uint8)
         for k, v in THUENEN_MAP.items():

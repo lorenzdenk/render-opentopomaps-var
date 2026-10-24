@@ -26,6 +26,7 @@ from osgeo import gdal, osr
 from PIL import Image, ImageFilter
 
 gdal.UseExceptions()
+gdal.SetConfigOption("GDAL_DISABLE_READDIR_ON_OPEN", "EMPTY_DIR")
 W, S, E, N = map(float, sys.argv[1:5])
 COP, OUT = sys.argv[5], sys.argv[6]
 WORK = sys.argv[7] if len(sys.argv) > 7 else os.path.dirname(os.path.abspath(OUT))
@@ -130,7 +131,7 @@ def lgl_tiles(d):
 def to_grid(files, srs, bounds, cols, rows, alg):
     if not files:
         return None
-    vrt = gdal.BuildVRT("", files)
+    vrt = files[0] if len(files) == 1 and isinstance(files[0], gdal.Dataset) else gdal.BuildVRT("", files)
     ds = gdal.Warp("", vrt, format="MEM", dstSRS="EPSG:3857", outputBounds=bounds, width=cols, height=rows,
                    resampleAlg=alg, dstNodata=-32768, outputType=gdal.GDT_Float32)
     a = ds.GetRasterBand(1).ReadAsArray().astype(np.float32)
@@ -160,7 +161,9 @@ def copernicus_vrt():
         for lo in range(math.floor(W), math.floor(E) + 1):
             n = f"Copernicus_DSM_COG_10_{'N' if la >= 0 else 'S'}{abs(la):02d}_00_{'E' if lo >= 0 else 'W'}{abs(lo):03d}_00_DEM"
             srcs.append(f"/vsicurl/https://copernicus-dem-30m.s3.amazonaws.com/{n}/{n}.tif")
-    return gdal.BuildVRT("/vsimem/cop.vrt", srcs)
+    vrt = gdal.BuildVRT("/vsimem/cop.vrt", srcs)
+    vrt.FlushCache()
+    return vrt
 
 
 def main():
