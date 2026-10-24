@@ -1,0 +1,227 @@
+name: Render OpenTopoMap MBTiles
+
+# Renders the regions configured in render/region.env.
+# Starts on every push that changes render/ (or manually via "Run workflow").
+# MODE=tiles is split into SHARDS parallel jobs; a final job merges the parts into one file per region.
+on:
+  push:
+    branches: [main]
+    paths: ['render/**', '.github/workflows/render-otm.yml']
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+concurrency:
+  group: render-${{ github.sha }}   # each push renders independently (runs in parallel)
+  cancel-in-progress: false
+
+jobs:
+  plan:
+    runs-on: ubuntu-24.04
+    outputs:
+      shards: ${{ steps.p.outputs.shards }}
+      count: ${{ steps.p.outputs.count }}
+    steps:
+      - uses: actions/checkout@v4
+      - id: p
+        run: |
+          source render/region.env
+          n=${GITHUB_SHARDS:-1}; [ "$MODE" = tiles ] || n=1
+          echo "count=$n" >> "$GITHUB_OUTPUT"
+          echo "shards=$(python3 -c "import json;print(json.dumps(list(range($n))))")" >> "$GITHUB_OUTPUT"
+      - name: Prepare national hillshades
+        # downloaded once here (release "hillshade-data"), so the render jobs do not all fetch the same tiles
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          source render/region.env
+          need=""
+          for r in $REGIONS; do (REGION=$r; source render/regions/$r.env; [ -n "${HILLSHADE_SOURCES:-}" ]) && need=1; done
+          [ -n "$need" ] || exit 0
+          sudo apt-get update -qq && sudo apt-get install -y -qq python3-gdal python3-numpy python3-pil gdal-bin bc
+          mkdir -p logs
+          for r in $REGIONS; do
+            REGION=$r bash render/data/hillshade_cache.sh "$RUNNER_TEMP/hs" 2>&1 | tee -a logs/hillshade.log
+          done
+
+  render:
+    needs: plan
+    runs-on: ubuntu-24.04
+    timeout-minutes: 355
+    strategy:
+      fail-fast: false
+      matrix:
+        shard: ${{ fromJson(needs.plan.outputs.shards) }}
+    env:
+      SHARD: ${{ matrix.shard }}
+      SHARDS: ${{ needs.plan.outputs.count }}
+      GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Free disk space
+        run: |
+          sudo rm -rf /usr/share/dotnet /usr/local/lib/android /opt/ghc /opt/hostedtoolcache/CodeQL
+          df -h /
+
+      - name: Render
+        run: |
+          mkdir -p logs
+          set -o pipefail
+          export JOB_START=$(date +%s)
+          # intermediate logs every 5 minutes (branch render-logs-shard<k>)
+          ( while sleep 300; do bash render/push_logs.sh logs "run ${{ github.run_id }} shard $SHARD running $(date -u +%H:%M)" render-logs-shard$SHARD || true; done ) &
+          source render/region.env
+          SHARDS=${{ needs.plan.outputs.count }}
+          for r in $REGIONS; do
+            echo "########## region $r, shard $((SHARD + 1))/$SHARDS"
+            REGION=$r OUT=$GITHUB_WORKSPACE/out bash render/render.sh 2>&1 | tee -a logs/render.log
+          done
+
+      - name: Stage big parts
+        # files too big to pass to the merge job as artifacts go to a temporary release
+        if: success()
+        run: |
+          for f in out/*.part*.mbtiles; do
+            [ -f "$f" ] || continue
+            [ "$(stat -c %s "$f")" -gt 150000000 ] || continue
+            gh release view stage-${{ github.run_id }} -R "$GITHUB_REPOSITORY" >/dev/null 2>&1 || \
+              gh release create stage-${{ github.run_id }} -R "$GITHUB_REPOSITORY" --prerelease --latest=false \
+                -t "temporary parts of run ${{ github.run_id }}" -n "deleted after packing" || true
+            for t in 1 2 3 4 5; do
+              gh release upload stage-${{ github.run_id }} "$f" -R "$GITHUB_REPOSITORY" --clobber && break
+              sleep $((t * 20))
+            done
+            rm "$f"
+          done
+
+      - name: Upload part
+        if: success()
+        uses: actions/upload-artifact@v4
+        with:
+          name: part-${{ matrix.shard }}
+          path: |
+            out/*.mbtiles
+            out/*.txt
+            out/preview/*.jpg
+          retention-days: 3
+          compression-level: 0
+          if-no-files-found: ignore
+
+      - name: Publish logs
+        if: always()
+        run: bash render/push_logs.sh logs "run ${{ github.run_id }} shard $SHARD ${{ job.status }}" render-logs-shard$SHARD
+
+  merge:
+    needs: [plan, render]
+    if: always() && needs.plan.result == 'success'
+    runs-on: ubuntu-24.04
+    env:
+      GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Use the big temporary disk for the output
+        run: |
+          sudo mkdir -p /mnt/out /mnt/tmp && sudo chown -R "$USER" /mnt/out /mnt/tmp
+          ln -s /mnt/out out
+          df -h / /mnt
+
+      - uses: actions/download-artifact@v4
+        with:
+          path: parts
+          pattern: part-*
+          merge-multiple: true
+
+      - name: Merge parts
+        run: |
+          python3 -c "import PIL" 2>/dev/null || pip install --break-system-packages -q pillow
+          mkdir -p logs out
+          echo "render jobs: ${{ needs.render.result }}" | tee logs/merge.log
+          cp parts/preview/*.jpg logs/ 2>/dev/null || true
+          for f in parts/*.mbtiles; do
+            [ -f "$f" ] || continue
+            case "$f" in *.part*.mbtiles) ;; *) mv "$f" out/ ;; esac
+          done
+          for base in $(ls parts/*.part*.mbtiles 2>/dev/null | sed 's/\.part[0-9]*\.mbtiles$//' | sort -u); do
+            n=$(basename "$base")
+            parts=$(ls "$base".part*.mbtiles | wc -l)
+            echo "merging $n: $parts of ${{ needs.plan.outputs.count }} parts" | tee -a logs/merge.log
+            if [ "$parts" -ne "${{ needs.plan.outputs.count }}" ]; then
+              echo "WARN: $n incomplete, written as $n-INCOMPLETE" | tee -a logs/merge.log
+              n="$n-INCOMPLETE"
+            fi
+            python3 render/merge_mbtiles.py "out/$n.mbtiles" "$base".part*.mbtiles 2>&1 | tee -a logs/merge.log
+          done
+          if gh release view stage-${{ github.run_id }} -R "$GITHUB_REPOSITORY" >/dev/null 2>&1; then
+            python3 render/pack_parts.py stage-${{ github.run_id }} ${{ needs.plan.outputs.count }} out /mnt/tmp 2>&1 | tee -a logs/merge.log
+          fi
+          ls -la out/ | tee -a logs/merge.log
+
+      - name: Sample tiles for checking
+        run: |
+          for f in out/*.mbtiles; do
+            [ -f "$f" ] || continue
+            n=$(basename "$f" .mbtiles)
+            case "$n" in *-part*of*) continue ;; esac   # big maps in parts: no samples
+            sqlite3 "$f" "SELECT zoom_level, count(*), sum(length(tile_data))/1024/1024 || ' MB' FROM tiles GROUP BY zoom_level;" > "logs/tile-stats-$n.txt"
+            ls -la "$f" >> "logs/tile-stats-$n.txt"
+            python3 - "$f" "$n" <<'EOF'
+          import io, math, sqlite3, sys
+          from PIL import Image
+          f, n = sys.argv[1], sys.argv[2]
+          db = sqlite3.connect(f)
+          w, s, e, nn = map(float, db.execute("SELECT value FROM metadata WHERE name='bounds'").fetchone()[0].split(","))
+          lon, lat = (w + e) / 2, (s + nn) / 2
+          import os
+          spots = [("", lat, lon, (10, 12, 13, 14, 15, 16, 17))]
+          if os.path.exists(f"parts/samples-{n}.txt"):
+              for line in open(f"parts/samples-{n}.txt"):
+                  p = line.strip().split(";")
+                  if len(p) == 3 and p[1]:
+                      spots.append((p[0] + "-", float(p[1]), float(p[2]), (13, 14, 15)))
+          for tag, la, lo, zooms in spots:
+              for z in zooms:
+                  t = 2 ** z
+                  x = int((lo + 180) / 360 * t)
+                  y = int((1 - math.log(math.tan(math.radians(la)) + 1 / math.cos(math.radians(la))) / math.pi) / 2 * t)
+                  row = db.execute("SELECT tile_data FROM tiles WHERE zoom_level=? AND tile_column=? AND tile_row=?", (z, x, t - 1 - y)).fetchone()
+                  if row:
+                      Image.open(io.BytesIO(row[0])).save(f"logs/sample-{n}-{tag}z{z}.png")
+          EOF
+          done
+
+      - name: Publish logs
+        if: always()
+        run: bash render/push_logs.sh logs "run ${{ github.run_id }} merge ${{ job.status }} (render ${{ needs.render.result }})"
+
+      - name: Publish map
+        # out/ is a link to the big disk /mnt/out: hashFiles() and the release action do not see files there
+        # (the Tasmania z17 run of 22.10. was lost that way), so gh uploads them and checks the result
+        if: success()
+        run: |
+          files=$(ls /mnt/out/*.mbtiles 2>/dev/null || true)
+          [ -n "$files" ] || { echo "no map files"; exit 0; }
+          tag=map-${{ github.run_number }}
+          gh release view "$tag" -R "$GITHUB_REPOSITORY" >/dev/null 2>&1 || \
+            gh release create "$tag" -R "$GITHUB_REPOSITORY" -t "Offline map – ${{ github.run_number }}" \
+              -n 'OpenTopoMap-style offline map (MBTiles, 512 px WebP tiles). Import it in LoriMaps via the map menu → "+ Karte hinzufügen". Maps in parts (...-partNofM): import all parts.'
+          for f in $files; do
+            for t in 1 2 3 4 5; do
+              gh release upload "$tag" "$f" -R "$GITHUB_REPOSITORY" --clobber && break
+              echo "retry $f"; sleep $((t * 30))
+            done
+          done
+          # every file must be there before the temporary parts are deleted
+          have=$(gh release view "$tag" -R "$GITHUB_REPOSITORY" --json assets -q '.assets[].name')
+          for f in $files; do echo "$have" | grep -qx "$(basename "$f")" || { echo "missing $(basename "$f")"; exit 1; }; done
+          echo "published $(echo "$files" | wc -w) files as $tag"
+
+      - name: Delete temporary parts
+        if: success()
+        run: gh release delete stage-${{ github.run_id }} -R "$GITHUB_REPOSITORY" --cleanup-tag -y 2>/dev/null || true
+
+      - name: Publish result
+        if: always()
+        run: bash render/push_logs.sh logs "run ${{ github.run_id }} publish ${{ job.status }}" render-logs-publish

@@ -1,0 +1,123 @@
+name: Fill missing tiles
+# A big render whose jobs hit the time limit leaves out the last tiles of each job (the log says
+# "stopping after N of M tiles"). fill/fill.json lists them as [shard, skip, limit]: this workflow renders
+# exactly those tiles again, adds them to the published map as extra parts and publishes the complete map
+# as release "<source>-komplett". Starts on a push that changes fill/fill.json (or via "Run workflow").
+on:
+  push:
+    branches: [main]
+    paths: ['fill/fill.json']
+  workflow_dispatch:
+permissions:
+  contents: write
+
+jobs:
+  plan:
+    runs-on: ubuntu-24.04
+    outputs:
+      jobs: ${{ steps.p.outputs.jobs }}
+      source: ${{ steps.p.outputs.source }}
+      region: ${{ steps.p.outputs.region }}
+      shards: ${{ steps.p.outputs.shards }}
+    steps:
+      - uses: actions/checkout@v4
+      - id: p
+        run: |
+          python3 - <<'EOF' >> "$GITHUB_OUTPUT"
+          import json
+          f = json.load(open("fill/fill.json"))
+          print("jobs=" + json.dumps(f["jobs"]))
+          print("source=" + f["source"])
+          print("region=" + f["region"])
+          print("shards=" + str(f["shards"]))
+          EOF
+          cat "$GITHUB_OUTPUT"
+
+  render:
+    needs: plan
+    runs-on: ubuntu-24.04
+    timeout-minutes: 355
+    strategy:
+      fail-fast: false
+      matrix:
+        job: ${{ fromJson(needs.plan.outputs.jobs) }}
+    env:
+      SHARD: ${{ matrix.job[0] }}
+      SHARDS: ${{ needs.plan.outputs.shards }}
+      FILL_SKIP: ${{ matrix.job[1] }}
+      FILL_LIMIT: ${{ matrix.job[2] }}
+      GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+    steps:
+      - uses: actions/checkout@v4
+      - name: Free disk space
+        run: sudo rm -rf /usr/share/dotnet /usr/local/lib/android /opt/ghc /opt/hostedtoolcache/CodeQL
+      - name: Render
+        run: |
+          mkdir -p logs
+          set -o pipefail
+          export JOB_START=$(date +%s)
+          ( while sleep 300; do bash render/push_logs.sh logs "fill ${{ github.run_id }} shard $SHARD from $FILL_SKIP running $(date -u +%H:%M)" fill-logs-$SHARD-$FILL_SKIP || true; done ) &
+          REGION=${{ needs.plan.outputs.region }} OUT=$GITHUB_WORKSPACE/out bash render/render.sh 2>&1 | tee -a logs/render.log
+          ls -la out/*.fill*.mbtiles
+      - uses: actions/upload-artifact@v4
+        with:
+          name: fill-${{ matrix.job[0] }}-${{ matrix.job[1] }}
+          path: out/*.fill*.mbtiles
+          retention-days: 3
+          compression-level: 0
+      - name: Publish logs
+        if: always()
+        run: bash render/push_logs.sh logs "fill ${{ github.run_id }} shard $SHARD from $FILL_SKIP ${{ job.status }}" fill-logs-$SHARD-$FILL_SKIP
+
+  pack:
+    needs: [plan, render]
+    if: always() && needs.plan.result == 'success'
+    runs-on: ubuntu-24.04
+    timeout-minutes: 300
+    env:
+      GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+      GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+    steps:
+      - uses: actions/checkout@v4
+      - name: Prepare disk
+        run: |
+          sudo mkdir -p /mnt/src /mnt/out /mnt/fill && sudo chown -R "$USER" /mnt/src /mnt/out /mnt/fill
+          df -h /mnt
+      - uses: actions/download-artifact@v4
+        with:
+          path: /mnt/fill
+          pattern: fill-*
+          merge-multiple: true
+      - name: Pack
+        run: |
+          mkdir -p logs
+          set -o pipefail
+          {
+            echo "render jobs: ${{ needs.render.result }}"
+            ls -la /mnt/fill
+            src=${{ needs.plan.outputs.source }}
+            gh release download "$src" -R "$GITHUB_REPOSITORY" -p "*-otm-part*of*.mbtiles" -D /mnt/src
+            ls -la /mnt/src
+            python3 render/pack_fill.py /mnt/src /mnt/out /mnt/fill/*.mbtiles
+            ls -la /mnt/out
+          } 2>&1 | tee logs/fill-pack.log
+      - name: Publish
+        run: |
+          src=${{ needs.plan.outputs.source }}
+          tag=$src-komplett
+          [ "${{ needs.render.result }}" = success ] || tag=$src-teilweise-ergaenzt
+          gh release view "$tag" -R "$GITHUB_REPOSITORY" >/dev/null 2>&1 || \
+            gh release create "$tag" -R "$GITHUB_REPOSITORY" -t "Offline map – $src, complete" \
+              -n "The map of release $src with the tiles that were left out at the time limit. Import all parts (they replace the parts of $src). The overlays stay those of $src."
+          for f in /mnt/out/*.mbtiles; do
+            for t in 1 2 3 4 5; do
+              gh release upload "$tag" "$f" -R "$GITHUB_REPOSITORY" --clobber && break
+              echo "retry $f"; sleep $((t * 30))
+            done
+          done
+          have=$(gh release view "$tag" -R "$GITHUB_REPOSITORY" --json assets -q '.assets[].name')
+          for f in /mnt/out/*.mbtiles; do echo "$have" | grep -qx "$(basename "$f")" || { echo "missing $(basename "$f")"; exit 1; }; done
+          echo "published $(ls /mnt/out/*.mbtiles | wc -l) files as $tag" | tee -a logs/fill-pack.log
+      - name: Publish result
+        if: always()
+        run: bash render/push_logs.sh logs "fill ${{ github.run_id }} pack ${{ job.status }}" fill-logs-pack

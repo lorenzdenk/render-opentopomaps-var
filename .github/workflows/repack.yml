@@ -1,0 +1,38 @@
+name: Repack staged map parts
+# Safety net: if a big render was finished but publishing failed, the shard files are still in the temporary
+# release "stage-<run id>". This packs them again into parts below 2 GB and publishes them, without rendering again.
+# Start it by hand (Actions → "Repack staged map parts" → Run workflow) with the run id of the render run.
+on:
+  workflow_dispatch:
+    inputs:
+      run_id:
+        description: "run id of the render run (number in the URL of the run)"
+        required: true
+      shards:
+        description: "number of shards of that run"
+        required: true
+        default: "40"
+permissions:
+  contents: write
+jobs:
+  repack:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 300
+    env:
+      GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+    steps:
+      - uses: actions/checkout@v4
+      - name: Pack
+        run: |
+          sudo mkdir -p /mnt/out /mnt/tmp && sudo chown -R "$USER" /mnt/out /mnt/tmp
+          python3 render/pack_parts.py stage-${{ inputs.run_id }} ${{ inputs.shards }} /mnt/out /mnt/tmp
+          ls -la /mnt/out
+      - name: Publish
+        run: |
+          tag=map-repack-${{ inputs.run_id }}
+          gh release view "$tag" -R "$GITHUB_REPOSITORY" >/dev/null 2>&1 || \
+            gh release create "$tag" -R "$GITHUB_REPOSITORY" -t "Offline map (repacked run ${{ inputs.run_id }})" -n "Import all parts."
+          for f in /mnt/out/*.mbtiles; do
+            for t in 1 2 3 4 5; do gh release upload "$tag" "$f" -R "$GITHUB_REPOSITORY" --clobber && break; sleep $((t * 30)); done
+          done
+          gh release view "$tag" -R "$GITHUB_REPOSITORY" --json assets -q '.assets[].name'
