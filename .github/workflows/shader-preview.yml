@@ -1,0 +1,33 @@
+name: Hillshade preview
+# Compares the candidate hillshade services (basemap.de, swisstopo) with the 30 m OTM hillshade at a few places.
+# Images go to the branch "shader-preview".
+on:
+  push:
+    branches: [main]
+    paths: ['tools/shader_preview.py', '.github/workflows/shader-preview.yml']
+  workflow_dispatch:
+permissions:
+  contents: write
+jobs:
+  preview:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v4
+      - name: Install
+        run: sudo apt-get update -qq && sudo apt-get install -y -qq python3-gdal python3-numpy python3-pil gdal-bin fonts-dejavu-core
+      - name: Render
+        run: |
+          set -o pipefail
+          mkdir -p out
+          python3 tools/shader_preview.py out 2>&1 | tee out/log.txt
+      - name: Publish
+        if: always()
+        run: |
+          cd out
+          git init -q -b shader-preview
+          git config user.name "github-actions"
+          git config user.email "github-actions@users.noreply.github.com"
+          git add -A
+          git commit -q -m "shader preview ${{ github.run_id }}"
+          git push -f "https://x-access-token:${{ secrets.GITHUB_TOKEN }}@github.com/${{ github.repository }}.git" shader-preview
