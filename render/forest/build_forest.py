@@ -1,14 +1,17 @@
 #!/usr/bin/env python3
 """Forest type raster for Germany / Switzerland (classes of the map legend), Web Mercator, RES m:
 
-  1 spruce / Douglas fir / fir   2 pine   3 larch   4 beech   5 oak   6 birch   7 other   8 canopy loss
-  0 no information (OSM forest there is drawn as 7 "other")
+  share of broadleaved trees: 1 conifers 0-10 %   2 mixed, mostly conifers 10-50 %
+                              3 mixed, mostly broadleaved 50-90 %   4 broadleaved 90-100 %
+  drawn separately where they dominate: 5 pine   6 birch
+  8 canopy loss (clearing, Germany only)   0 no information (OSM forest there is drawn as 7 "no information")
 
-Sources, in priority order:
-  Thurgau: Forstliche Bestandeskarte (Kanton Thurgau, open use), main tree species per stand (WFS)
-  Germany: tree species map 2022, DLR / Thünen-Institut, 10 m (CC BY 4.0)
-  rest of Switzerland: Waldmischungsgrad LFI (BAFU), 10 m, share of broadleaved trees:
-           below 40 % -> 1 (conifers), otherwise 7 (broadleaved / mixed)
+Sources:
+  Switzerland: Waldmischungsgrad LFI (BAFU, Sentinel-1/2, 2023), 10 m, share of broadleaved trees in %;
+               pine from the Thurgau stand map (Forstliche Bestandeskarte, main tree species "Föhre")
+  Germany: tree species map 2022, DLR / Thünen-Institut, 10 m (CC BY 4.0): the broadleaf share is the share of
+           broadleaved pixels (beech, oak, birch, alder, other) among all tree pixels within SHARE_WIN pixels;
+           pine, birch and canopy loss where they are the most frequent class within MAJORITY pixels
 
 Small specks (below SIEVE pixels) are merged into their neighbours.
 Usage: build_forest.py <W> <S> <E> <N> <out.tif> [workdir]
@@ -31,19 +34,21 @@ W, S, E, N = map(float, sys.argv[1:5])
 OUT = sys.argv[5]
 WORK = sys.argv[6] if len(sys.argv) > 6 else os.path.dirname(os.path.abspath(OUT))
 RES = float(os.environ.get("FOREST_RES", "5"))
-SIEVE = int(os.environ.get("FOREST_SIEVE", "120"))      # pixels: 120 x 25 m² = 0.3 ha
-MAJORITY = int(os.environ.get("FOREST_MAJORITY", "7"))  # window (pixels) of the majority filter for the satellite maps
+SIEVE = int(os.environ.get("FOREST_SIEVE", "120"))       # pixels: 120 x 25 m² = 0.3 ha
+MAJORITY = int(os.environ.get("FOREST_MAJORITY", "7"))   # window (pixels) for pine / birch / loss in Germany
+SHARE_WIN = int(os.environ.get("FOREST_SHARE_WIN", "11"))  # window (pixels) of the broadleaf share in Germany (55 m)
 UA = {"User-Agent": "LoriMaps-render (+https://github.com/lorenzdenk/render-opentopomaps-var)"}
 
 THUENEN = "/vsicurl/https://download.geoservice.dlr.de/TREE_SPECIES_DE/files/treespecies_de_2022.tif"
 BAFU = "/vsicurl/https://data.geo.admin.ch/ch.bafu.landesforstinventar-waldmischungsgrad/landesforstinventar-waldmischungsgrad/landesforstinventar-waldmischungsgrad_2056.tif"
 TG = "https://ows.geo.tg.ch/geofy_access_proxy/forstliche_bestandeskarte"
 
-# Thünen codes: 0 pine, 1 spruce, 2 Douglas fir, 3 larch, 4 fir, 5 beech, 6 oak, 7 birch, 8 alder, 9 other, 666 loss
-THUENEN_MAP = {0: 2, 1: 1, 2: 1, 3: 3, 4: 1, 5: 4, 6: 5, 7: 6, 8: 7, 9: 7, 666: 8}
-# Thurgau "hauptbaum" codes in the order of the WMS legend: 0 Fichte, 1 Tanne, 2 Föhre, 3 Lärche, 4 andere Nadelhölzer,
-# 5 Buche, 6 Eiche, 7 Esche, 8 Ahorn, 9 andere Laubhölzer (checked against the WMS colours in the log)
-TG_MAP = {0: 1, 1: 1, 2: 2, 3: 3, 4: 1, 5: 4, 6: 5, 7: 7, 8: 7, 9: 7}
+# Thünen codes (treespecies_de_2022.qml): 0 pine, 1 spruce, 2 Douglas fir, 3 larch, 4 fir, 5 beech, 6 oak, 7 birch,
+# 8 alder, 9 other, 666 canopy cover loss
+TH_CONIFER, TH_BROADLEAF, TH_PINE, TH_BIRCH, TH_LOSS = (0, 1, 2, 3, 4), (5, 6, 7, 8, 9), 0, 7, 666
+# Thurgau "hauptbaum" codes (checked against the WMS legend colours): 0 Fichte, 1 Tanne, 2 Föhre, 3 Lärche,
+# 4 andere Nadelhölzer, 5 Buche, 6 Eiche, 7 Esche, 8 Ahorn, 9 andere Laubhölzer. Only pine (Föhre) is used.
+TG_MAP = {2: 5}
 TG_NAMES = ["Fichte", "Tanne", "Föhre", "Lärche", "andere Nadelhölzer", "Buche", "Eiche", "Esche", "Ahorn", "andere Laubhölzer"]
 
 
@@ -129,18 +134,19 @@ def check_thurgau_codes(feats):
             print(f"  Thurgau code {c}: WMS check failed {e}", flush=True)
 
 
-def majority(cls, mask, size):
-    """Most frequent class in a size x size window, only where mask (the 10 m satellite classes are noisy pixel by pixel)."""
+def boxsum(a, size):
     r = size // 2
-    best, best_n = cls.copy(), np.zeros(cls.shape, np.int32)
-    for k in range(1, 9):
-        a = np.pad((cls == k).astype(np.int32), r)
-        c = a.cumsum(0).cumsum(1)
-        c = np.pad(c, ((1, 0), (1, 0)))
-        n = c[size:, size:] - c[:-size, size:] - c[size:, :-size] + c[:-size, :-size]
-        better = n > best_n
-        best[better], best_n[better] = k, n[better]
-    return np.where(mask & (best_n > 0), best, cls)
+    c = np.pad(a.astype(np.int32), r).cumsum(0).cumsum(1)
+    c = np.pad(c, ((1, 0), (1, 0)))
+    return c[size:, size:] - c[:-size, size:] - c[size:, :-size] + c[:-size, :-size]
+
+
+def share_classes(share):
+    """broadleaf share in % -> classes 1-4 (0 where unknown)"""
+    out = np.zeros(share.shape, np.uint8)
+    ok = np.isfinite(share)
+    out[ok] = np.select([share[ok] < 10, share[ok] < 50, share[ok] < 90], [1, 2, 3], 4)
+    return out
 
 
 def main():
@@ -152,60 +158,70 @@ def main():
     cols, rows = int((x1 - x0) / RES) + 1, int((y1 - y0) / RES) + 1
     bounds = (x0, y1 - rows * RES, x0 + cols * RES, y1)
     print(f"grid {cols} x {rows} px, {RES} m", flush=True)
-    cls = np.zeros((rows, cols), np.uint8)
+    share = np.full((rows, cols), np.nan, np.float32)
+    special = np.zeros((rows, cols), np.uint8)
 
-    # 3) rest of Switzerland: broadleaf share
+    # Switzerland: broadleaf share
     try:
-        a = warp(BAFU, bounds, cols, rows)
-        ok = (a >= 0) & (a <= 100)
-        cls[ok] = np.where(a[ok] < 40, 1, 7)
-        print(f"BAFU Waldmischungsgrad: {ok.mean() * 100:.1f} % of the area, values {np.unique(a)[:12]}", flush=True)
+        info = gdal.Info(BAFU, format="json")
+        print("BAFU raster:", info["bands"][0].get("type"), "nodata", info["bands"][0].get("noDataValue"), flush=True)
+        a = warp(BAFU, bounds, cols, rows, gdal.GDT_Float32)
+        nd = info["bands"][0].get("noDataValue")
+        ok = (a >= 0) & np.isfinite(a) & ((a != nd) if nd is not None else True)
+        if ok.any():
+            hi = np.percentile(a[ok], 99.5)
+            scale = 100.0 if hi <= 1.0 else (0.01 if hi > 100 else 1.0)   # fraction, per mille/10000 or percent
+            print(f"BAFU: {ok.mean() * 100:.1f} % of the area, values {np.percentile(a[ok], [1, 25, 50, 75, 99]).round(2)},"
+                  f" scale {scale}", flush=True)
+            share[ok] = np.clip(a[ok] * scale, 0, 100)
     except Exception as e:
         print("WARN: BAFU failed:", e, flush=True)
 
-    # 2) Germany: tree species
+    # Germany: share from the species, pine / birch / loss where they dominate
     try:
         qml = get(THUENEN.replace("/vsicurl/", "").replace(".tif", ".qml")).decode("utf-8", "replace")
         import re as _re
-        print("Thünen legend (qml):", _re.findall(r'<(?:paletteEntry|item)[^>]*>', qml)[:20], flush=True)
+        print("Thünen legend:", _re.findall(r'label="([^"]+)" value="(\d+)"', qml), flush=True)
     except Exception as e:
         print("Thünen legend not read:", e, flush=True)
     try:
         a = warp(THUENEN, bounds, cols, rows)
-        lut = np.zeros(1024, np.uint8)
-        for k, v in THUENEN_MAP.items():
-            lut[k] = v
-        b = lut[np.clip(a, 0, 1023)] * (a >= 0)
-        cls = np.where(b > 0, b, cls)
+        tree = np.isin(a, TH_CONIFER + TH_BROADLEAF)
+        broad = np.isin(a, TH_BROADLEAF)
+        n_tree, n_broad = boxsum(tree, SHARE_WIN), boxsum(broad, SHARE_WIN)
+        de = (a >= 0) & (n_tree > 0)
+        share[de] = 100.0 * n_broad[de] / n_tree[de]
+        win = {k: boxsum(a == k, MAJORITY) for k in TH_CONIFER + TH_BROADLEAF + (TH_LOSS,)}
+        best = np.max(np.stack(list(win.values())), axis=0)
+        for k, c in ((TH_PINE, 5), (TH_BIRCH, 6), (TH_LOSS, 8)):
+            special[(a >= 0) & (win[k] == best) & (win[k] > 0)] = c
         vals, cnt = np.unique(a[a >= 0], return_counts=True)
-        print(f"Thünen tree species: {(b > 0).mean() * 100:.1f} % of the area, codes {dict(zip(vals.tolist(), cnt.tolist()))}",
+        print(f"Thünen tree species: {de.mean() * 100:.1f} % of the area, codes {dict(zip(vals.tolist(), cnt.tolist()))}",
               flush=True)
     except Exception as e:
         print("WARN: Thünen failed:", e, flush=True)
 
-    sat = cls > 0
-    cls = majority(cls, sat, MAJORITY)
-    print(f"majority filter {MAJORITY} x {MAJORITY} px on the satellite classes", flush=True)
-
-    # 1) Thurgau stands (real stand boundaries: no filter)
+    # Thurgau: pine stands
     try:
         path = os.path.join(WORK, "thurgau_stands.geojson")
         feats = thurgau(path)
+        print(f"Thurgau: {len(feats)} pine stands", flush=True)
         if feats:
-            check_thurgau_codes(feats)
-            ds = gdal.GetDriverByName("MEM").Create("", cols, rows, 1, gdal.GDT_Byte)
-            ds.SetGeoTransform((bounds[0], RES, 0, bounds[3], 0, -RES))
-            ds.SetProjection(m.ExportToWkt())
             merc = os.path.join(WORK, "thurgau_stands_3857.gpkg")
             gdal.VectorTranslate(merc, path, format="GPKG", dstSRS="EPSG:3857", srcSRS="EPSG:2056",
                                  layerName="stands", makeValid=True)
+            ds = gdal.GetDriverByName("MEM").Create("", cols, rows, 1, gdal.GDT_Byte)
+            ds.SetGeoTransform((bounds[0], RES, 0, bounds[3], 0, -RES))
+            ds.SetProjection(m.ExportToWkt())
             gdal.Rasterize(ds, merc, attribute="cls", layers=["stands"])
             t = ds.GetRasterBand(1).ReadAsArray()
-            cls = np.where(t > 0, t, cls)
-            print(f"Thurgau: {(t > 0).mean() * 100:.1f} % of the area", flush=True)
+            special = np.where(t > 0, t, special)
+            print(f"Thurgau pine: {(t > 0).mean() * 100:.2f} % of the area", flush=True)
     except Exception as e:
         print("WARN: Thurgau failed:", e, flush=True)
 
+    cls = share_classes(share)
+    cls = np.where(special > 0, special, cls)
     drv = gdal.GetDriverByName("GTiff")
     ds = drv.Create(OUT, cols, rows, 1, gdal.GDT_Byte, ["TILED=YES", "COMPRESS=DEFLATE"])
     ds.SetGeoTransform((bounds[0], RES, 0, bounds[3], 0, -RES))

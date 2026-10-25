@@ -513,14 +513,14 @@ if TASVEG:
     xml = patch("</Map>", trees + "\n</Map>", "TASVEG notable trees")
 
 # ---------------------------------------------------------------- forest types (Germany / Switzerland, option)
-# FOREST_TYPES=1: OSM forest coloured by main tree species (render/forest/import_forest.sh), colours agreed with the user
-FOREST_COLOURS = {1: "#6E9F80",   # spruce / Douglas fir / fir: dark blue-green
-                  2: "#A3B894",   # pine: grey olive green
-                  3: "#C6D85F",   # larch: lime yellow
-                  4: "#86C46C",   # beech: fresh green
-                  5: "#CDBF7A",   # oak: warm ochre
-                  6: "#DDEBB5",   # birch: light green
-                  7: "#B9D984",   # other / no information: OpenTopoMap forest green
+# FOREST_TYPES=1: OSM forest coloured by broadleaf share, pine and birch separately (render/forest/import_forest.sh), colours agreed with the user
+FOREST_COLOURS = {1: "#6E9F80",   # conifers, broadleaf share 0-10 %: blue-green
+                  2: "#84AE78",   # mixed, mostly conifers (10-50 %)
+                  3: "#92BF66",   # mixed, mostly broadleaved (50-90 %)
+                  4: "#9CCB55",   # broadleaved (90-100 %): fresh yellow-green
+                  5: "#B5B08A",   # pine: grey khaki
+                  6: "#E2DC7E",   # birch: light yellow
+                  7: "#BEDB96",   # no information: pale OpenTopoMap green
                   8: "#E6E0C6"}   # canopy loss (clearing): light beige
 if os.environ.get("FOREST_TYPES") == "1":
     ft_rules = "".join(f'<Rule>&maxscale_zoom11;<Filter>[cls] = {k}</Filter><PolygonSymbolizer fill="{c}" gamma="0.5"/></Rule>'
