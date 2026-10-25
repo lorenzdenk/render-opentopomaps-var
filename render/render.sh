@@ -37,15 +37,17 @@ sub() { echo "----- $(date +%H:%M:%S) $*"; }
 # ---------------------------------------------------------------- software
 if [ "${SKIP_APT:-0}" != 1 ]; then
 step "Installing software"
-sudo apt-get update -q
-sudo DEBIAN_FRONTEND=noninteractive apt-get install -y -q --no-install-recommends \
+# a hanging mirror must not block a job for hours: short timeouts, a few retries
+APT_OPTS="-o Acquire::http::Timeout=30 -o Acquire::https::Timeout=30 -o Acquire::Retries=5"
+sudo apt-get $APT_OPTS update -q
+sudo DEBIAN_FRONTEND=noninteractive timeout 20m apt-get $APT_OPTS install -y -q --no-install-recommends \
   postgresql-16-postgis-3 postgresql-contrib osm2pgsql osmium-tool \
   gdal-bin python3-gdal libgdal-dev python3-mapnik mapnik-utils \
   fonts-dejavu-core fonts-dejavu-extra fonts-unifont fonts-noto-core \
   libdbd-pg-perl bc unzip zip sqlite3 build-essential python3-pil
 echo "ttf-mscorefonts-installer msttcorefonts/accepted-mscorefonts-eula select true" | sudo debconf-set-selections
 for pkg in fonts-roboto-unhinted fonts-open-sans ttf-mscorefonts-installer fonts-wine fonts-urw-base35 fonts-texgyre; do   # optional fonts
-  sudo DEBIAN_FRONTEND=noninteractive apt-get install -y -q --no-install-recommends "$pkg" || echo "WARN: $pkg not available"
+  sudo DEBIAN_FRONTEND=noninteractive timeout 5m apt-get $APT_OPTS install -y -q --no-install-recommends "$pkg" || echo "WARN: $pkg not available"
 done
 fi
 python3 -c "import mapnik; print('mapnik', mapnik.mapnik_version())"

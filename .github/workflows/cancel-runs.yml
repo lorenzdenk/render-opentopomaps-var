@@ -1,0 +1,17 @@
+name: Cancel runs
+# Cancels the workflow runs listed in RUN_IDS (edit the list and push this file).
+on:
+  push:
+    branches: [main]
+    paths: ['.github/workflows/cancel-runs.yml']
+  workflow_dispatch:
+permissions:
+  actions: write
+jobs:
+  cancel:
+    runs-on: ubuntu-24.04
+    env:
+      GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+      RUN_IDS: "40227781472"
+    steps:
+      - run: for id in $RUN_IDS; do gh run cancel "$id" -R "$GITHUB_REPOSITORY" || true; done
