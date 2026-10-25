@@ -513,15 +513,12 @@ if TASVEG:
     xml = patch("</Map>", trees + "\n</Map>", "TASVEG notable trees")
 
 # ---------------------------------------------------------------- forest types (Germany / Switzerland, option)
-# FOREST_TYPES=1: OSM forest coloured by broadleaf share, pine and birch separately (render/forest/import_forest.sh), colours agreed with the user
-FOREST_COLOURS = {1: "#6E9F80",   # conifers, broadleaf share 0-10 %: blue-green
-                  2: "#84AE78",   # mixed, mostly conifers (10-50 %)
-                  3: "#92BF66",   # mixed, mostly broadleaved (50-90 %)
+# FOREST_TYPES=1: OSM forest coloured by broadleaf share (render/forest/import_forest.sh), colours agreed with the user
+FOREST_COLOURS = {1: "#5A93A6",   # conifers, broadleaf share 0-10 %: steel blue-green
+                  2: "#73AA92",   # mixed, mostly conifers (10-50 %)
+                  3: "#8CBE6C",   # mixed, mostly broadleaved (50-90 %)
                   4: "#9CCB55",   # broadleaved (90-100 %): fresh yellow-green
-                  5: "#B5B08A",   # pine: grey khaki
-                  6: "#E2DC7E",   # birch: light yellow
-                  7: "#BEDB96",   # no information: pale OpenTopoMap green
-                  8: "#E6E0C6"}   # canopy loss (clearing): light beige
+                  7: "#BEDB96"}   # canopy loss (clearing): light beige
 if os.environ.get("FOREST_TYPES") == "1":
     ft_rules = "".join(f'<Rule>&maxscale_zoom11;<Filter>[cls] = {k}</Filter><PolygonSymbolizer fill="{c}" gamma="0.5"/></Rule>'
                        for k, c in FOREST_COLOURS.items())

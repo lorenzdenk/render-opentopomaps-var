@@ -17,14 +17,13 @@ Varianten an einigen Orten (Branch `shader-preview`).
 (Baden-Württemberg, INSPIRE-WCS, dl-de/by-2-0), auf 6 m zusammengesetzt und leicht geglättet
 (`render/data/fine_dem.py`); ausserhalb bleibt Copernicus 30 m.
 
-**Waldtypen** (`FOREST_TYPES=1`): OSM-Wald eingefärbt nach Laubholzanteil in vier Stufen, Kiefer und Birke
-gesondert, wo sie dominieren (`render/forest/`). Schweiz: Laubholzanteil aus dem BAFU-Waldmischungsgrad
-(Sentinel-1/2, 2023, 10 m), Kiefer aus der forstlichen Bestandeskarte Thurgau (Hauptbaumart Föhre; Birke hat dort
-keine eigene Klasse). Deutschland: Baumartenkarte 2022 von DLR/Thünen (10 m, CC BY 4.0), Laubholzanteil als Anteil
-der Laubholz-Pixel im Umkreis von ~55 m, Kiefer, Birke und Kahlflächen als häufigste Klasse im Umkreis von ~35 m.
-Farben (`FOREST_COLOURS` in `customize_style.py`): Nadelwald 0–10 % #6E9F80, Misch nadelholzreich 10–50 % #84AE78,
-Misch laubholzreich 50–90 % #92BF66, Laubwald 90–100 % #9CCB55, Kiefer #B5B08A, Birke #E2DC7E,
-ohne Angabe #BEDB96, Kahlfläche #E6E0C6. Vorbereitete Raster liegen im Release `prepared-data`.
+**Waldtypen** (`FOREST_TYPES=1`): OSM-Wald eingefärbt nach Laubholzanteil in vier Stufen (`render/forest/`).
+Thurgau: Mischung der forstlichen Bestandeskarte (Codes 1–4 = 0–10 / 10–50 / 50–90 / 90–100 % Laubholz).
+Übrige Schweiz und Thurgauer Bestände ohne Mischung (Codes 0, 5–9): BAFU-Waldmischungsgrad (Sentinel-1/2, 2023,
+10 m). Deutschland: Baumartenkarte 2022 von DLR/Thünen (10 m, CC BY 4.0), Anteil der Laubholz-Pixel im Umkreis von
+~55 m. Lücken bis etwa 120 m Breite übernehmen den Anteil der Umgebung. Farben (`FOREST_COLOURS` in
+`customize_style.py`): Nadelwald 0–10 % #5A93A6, Misch nadelholzreich 10–50 % #73AA92, Misch laubholzreich
+50–90 % #8CBE6C, Laubwald 90–100 % #9CCB55, ohne Angabe #BEDB96. Vorbereitete Raster liegen im Release `prepared-data`.
 
 Testregion: `regions/mainau-weinfelden.env` (Quadrat Insel Mainau – Weinfelden, bis z17).
 

@@ -23,7 +23,7 @@ CREATE TABLE forest_osm AS
   WHERE landuse IN ('forest', 'wood') OR "natural" = 'wood';
 CREATE INDEX ON forest_osm USING gist (way);
 CREATE TABLE forest_type AS
-  SELECT CASE WHEN c.cls BETWEEN 1 AND 8 THEN c.cls ELSE 7 END AS cls,
+  SELECT CASE WHEN c.cls BETWEEN 1 AND 4 THEN c.cls ELSE 7 END AS cls,
          (ST_Dump(ST_CollectionExtract(ST_Intersection(f.way, c.way), 3))).geom AS way
   FROM forest_osm f JOIN forest_class c ON ST_Intersects(f.way, c.way);
 DELETE FROM forest_type WHERE ST_Area(way) < 20;
