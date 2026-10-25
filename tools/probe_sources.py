@@ -1,90 +1,68 @@
 #!/usr/bin/env python3
-"""Probe of the data sources for contours and forest types in the test area (output: logs dir)."""
-import io, json, re, sys, urllib.parse, urllib.request, zipfile
+"""Probe: Thurgau stand map - all values of 'mischungsg' (mixture) in the test area, their meaning (WMS GetFeatureInfo
+text and colour of the 'mischung' layer) and cross tables with main tree species and development stage."""
+import collections, io, json, sys, urllib.parse, urllib.request
+from osgeo import ogr
+from PIL import Image
 OUT = sys.argv[1]
+BASE = "https://ows.geo.tg.ch/geofy_access_proxy/forstliche_bestandeskarte"
 UA = {"User-Agent": "LoriMaps-render probe"}
-def get(url, n=None):
-    print("GET", url, flush=True)
-    req = urllib.request.Request(url, headers=UA)
-    with urllib.request.urlopen(req, timeout=180) as r:
-        print("  ->", r.status, r.headers.get("Content-Type"), r.headers.get("Content-Length"), flush=True)
-        return r.read() if n is None else r.read(n)
-def tryit(name, f):
-    print(f"\n===== {name}", flush=True)
+def get(q):
+    with urllib.request.urlopen(urllib.request.Request(BASE + "?" + urllib.parse.urlencode(q), headers=UA), timeout=180) as r:
+        return r.read()
+feats, start = [], 0
+while True:
+    js = json.loads(get({"service": "WFS", "version": "2.0.0", "request": "GetFeature", "typeNames": "ms:mischung",
+                         "count": 3000, "startIndex": start, "srsName": "urn:ogc:def:crs:EPSG::2056",
+                         "bbox": "2722000,1265000,2738000,1281000,urn:ogc:def:crs:EPSG::2056", "outputFormat": "GEOJSON"}))
+    feats += js["features"]
+    if len(js["features"]) < 3000:
+        break
+    start += 3000
+print("stands:", len(feats))
+P = lambda f, k: (f["properties"].get(k) or "").strip()
+area = collections.Counter()
+for f in feats:
     try:
-        f()
+        area[P(f, "mischungsg")] += float(P(f, "are") or 0)
+    except ValueError:
+        pass
+cnt = collections.Counter(P(f, "mischungsg") for f in feats)
+print("mischungsg: count / area (ha):")
+for k, n in sorted(cnt.items()):
+    print(f"  '{k}': {n} stands, {area[k] / 100:.0f} ha")
+print("mischungsg x hauptbaum:")
+ct = collections.Counter((P(f, "mischungsg"), P(f, "hauptbaum")) for f in feats)
+for m in sorted(cnt):
+    print(f"  {m!r}: " + ", ".join(f"{h}:{ct[(m, h)]}" for h in map(str, range(10)) if ct[(m, h)]))
+print("mischungsg x entwstufe:")
+ct = collections.Counter((P(f, "mischungsg"), P(f, "entwstufe")) for f in feats)
+for m in sorted(cnt):
+    print(f"  {m!r}: " + ", ".join(f"{e}:{ct[(m, e)]}" for e in map(str, range(10)) if ct[(m, e)]))
+# meaning: GetFeatureInfo text and colour at one big stand per value
+seen = {}
+for f in sorted(feats, key=lambda f: -float(P(f, "are") or 0)):
+    m = P(f, "mischungsg")
+    if m in seen or not f.get("geometry"):
+        continue
+    g = ogr.CreateGeometryFromJson(json.dumps(f["geometry"])).PointOnSurface()
+    seen[m] = (g.GetX(), g.GetY(), P(f, "objectid"), P(f, "hauptbaum"), P(f, "entwstufe"))
+for m, (x, y, oid, hb, es) in sorted(seen.items()):
+    bb = f"{x - 5},{y - 5},{x + 5},{y + 5}"
+    base = {"service": "WMS", "version": "1.3.0", "crs": "EPSG:2056", "bbox": bb, "width": 11, "height": 11,
+            "layers": "mischung", "styles": ""}
+    try:
+        col = Image.open(io.BytesIO(get({**base, "request": "GetMap", "format": "image/png", "transparent": "false"}))).convert("RGB").getpixel((5, 5))
     except Exception as e:
-        print("FAILED:", repr(e)[:500], flush=True)
-
-def lgl():
-    base = "https://owsproxy.lgl-bw.de/owsproxy/wcs/WCS_INSP_BW_Hoehe_Coverage_DGM1"
-    caps = get(base + "?service=WCS&request=GetCapabilities&version=2.0.1").decode("utf-8", "replace")
-    open(OUT + "/lgl_caps.xml", "w").write(caps)
-    ids = re.findall(r"<wcs:CoverageId>([^<]+)</wcs:CoverageId>", caps)
-    print("coverage ids:", ids)
-    print("formats:", re.findall(r"<wcs:formatSupported>([^<]+)<", caps))
-    if ids:
-        d = get(base + f"?service=WCS&request=DescribeCoverage&version=2.0.1&CoverageId={ids[0]}").decode("utf-8", "replace")
-        open(OUT + "/lgl_describe.xml", "w").write(d)
-        print("describe (start):", d[:1500])
-        axis = re.findall(r'axisLabels="([^"]+)"', d)
-        srs = re.findall(r'srsName="([^"]+)"', d)
-        print("axis:", axis[:2], "srs:", srs[:2])
-        # small piece near Allensbach (Bodanrück), EPSG:25832 approx
-        for sub in ("&subset=E(506000,507000)&subset=N(5285000,5286000)", "&subset=x(506000,507000)&subset=y(5285000,5286000)"):
-            try:
-                data = get(base + f"?service=WCS&request=GetCoverage&version=2.0.1&CoverageId={ids[0]}&format=image/tiff" + sub)
-                print("  bytes:", len(data), data[:8])
-                if data[:2] in (b"II", b"MM"):
-                    open(OUT + "/lgl_sample.tif", "wb").write(data)
-                    break
-                print(data[:600])
-            except Exception as e:
-                print("  subset failed", e)
-
-def swiss():
-    url = ("https://data.geo.admin.ch/api/stac/v0.9/collections/ch.swisstopo.swissalti3d/items?"
-           "bbox=9.047,47.567,9.253,47.707&limit=100")
-    js = json.loads(get(url))
-    feats = js["features"]
-    print("items:", len(feats), "next:", [l["href"] for l in js.get("links", []) if l.get("rel") == "next"][:1])
-    if feats:
-        print("first item:", feats[0]["id"], list(feats[0]["assets"].items())[:4])
-        yrs = sorted({f["id"].split("_")[1] for f in feats})
-        print("years:", yrs)
-        ids = sorted(f["id"] for f in feats)
-        print("ids e.g.", ids[:3], ids[-3:])
-
-def thuenen():
-    for u in ("https://download.geoservice.dlr.de/TREE_SPECIES_DE/files/",
-              "https://download.geoservice.dlr.de/TREE_SPECIES_DE/files/readme.txt"):
+        col = repr(e)[:80]
+    txt = ""
+    for fmt in ("text/plain", "text/html", "application/vnd.ogc.gml"):
         try:
-            t = get(u).decode("utf-8", "replace")
-            open(OUT + "/thuenen_" + ("index.html" if u.endswith("/") else "readme.txt"), "w").write(t)
-            print(re.findall(r'href="([^"]+)"', t)[:40] if u.endswith("/") else t[:800])
+            t = get({**base, "request": "GetFeatureInfo", "query_layers": "mischung", "info_format": fmt, "i": 5, "j": 5,
+                     "feature_count": 1}).decode("utf-8", "replace")
+            if t.strip():
+                txt = " ".join(t.split())[:900]
+                break
         except Exception as e:
-            print("failed", u, e)
-
-def bafu():
-    data = get("https://data.geo.admin.ch/ch.bafu.landesforstinventar-waldmischungsgrad/data.zip")
-    z = zipfile.ZipFile(io.BytesIO(data))
-    for i in z.infolist()[:30]:
-        print("  ", i.filename, i.file_size)
-    js = json.loads(get("https://data.geo.admin.ch/api/stac/v0.9/collections/ch.bafu.landesforstinventar-waldmischungsgrad/items?limit=5"))
-    for f in js["features"]:
-        print("item", f["id"], {k: v["href"] for k, v in f["assets"].items()})
-
-def tg():
-    base = "https://ows.geo.tg.ch/geofy_access_proxy/forstliche_bestandeskarte"
-    q = ("?service=WFS&version=2.0.0&request=GetFeature&typeNames=ms:hauptbaumart&resultType=hits"
-         "&bbox=2722000,1265000,2738000,1281000,urn:ogc:def:crs:EPSG::2056")
-    print(get(base + q)[:600])
-    q2 = ("?service=WFS&version=2.0.0&request=GetFeature&typeNames=ms:hauptbaumart&count=5&startIndex=3000"
-          "&bbox=2722000,1265000,2738000,1281000,urn:ogc:def:crs:EPSG::2056&outputFormat=GEOJSON")
-    js = json.loads(get(base + q2))
-    print("paging startIndex=3000 ->", len(js.get("features", [])), "features")
-    caps = open(OUT + "/../tgcaps.xml").read() if False else ""
-
-for name, f in (("LGL WCS DGM1", lgl), ("swissALTI3D STAC", swiss), ("Thuenen tree species", thuenen),
-                ("BAFU Waldmischungsgrad", bafu), ("Thurgau WFS paging", tg)):
-    tryit(name, f)
+            txt = repr(e)[:120]
+    print(f"\nmischungsg {m!r} (stand {oid}, hauptbaum {hb}, entwstufe {es}): WMS colour {col}\n  info: {txt}")
