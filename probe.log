@@ -1,0 +1,65 @@
+stands: 8636
+mischungsg: count / area (ha):
+  '0': 40 stands, 1076 ha
+  '1': 1289 stands, 55258 ha
+  '2': 1674 stands, 102076 ha
+  '3': 1888 stands, 129694 ha
+  '4': 3724 stands, 177340 ha
+  '5': 6 stands, 481 ha
+  '6': 2 stands, 70 ha
+  '7': 6 stands, 223 ha
+  '8': 2 stands, 71 ha
+  '9': 5 stands, 191 ha
+mischungsg x hauptbaum:
+  '0': 0:11, 3:1, 4:1, 6:1, 7:3, 8:2
+  '1': 0:1071, 1:142, 2:29, 3:27, 4:6, 7:5, 8:6, 9:3
+  '2': 0:1136, 1:238, 2:111, 3:102, 4:28, 5:13, 6:8, 7:24, 8:5, 9:9
+  '3': 0:110, 1:27, 2:30, 3:24, 4:6, 5:415, 6:205, 7:728, 8:169, 9:174
+  '4': 0:11, 1:3, 2:1, 4:2, 5:454, 6:622, 7:1505, 8:624, 9:502
+  '5': 0:4, 6:1, 7:1
+  '6': 0:1, 7:1
+  '7': 3:1, 7:4, 9:1
+  '8': 0:1, 7:1
+  '9': 0:1, 6:3, 9:1
+mischungsg x entwstufe:
+  '0': 0:21, 1:4, 3:5, 4:1, 6:2, 9:7
+  '1': 1:32, 2:69, 3:256, 4:537, 5:287, 6:82, 7:4, 8:19, 9:3
+  '2': 1:73, 2:129, 3:333, 4:439, 5:395, 6:178, 7:37, 8:84, 9:6
+  '3': 1:177, 2:170, 3:308, 4:315, 5:411, 6:214, 7:119, 8:132, 9:42
+  '4': 1:332, 2:445, 3:968, 4:472, 5:438, 6:194, 7:389, 8:172, 9:314
+  '5': 2:1, 4:1, 5:2, 6:2
+  '6': 4:2
+  '7': 2:1, 3:1, 4:3, 6:1
+  '8': 3:1, 4:1
+  '9': 1:3, 3:1, 4:1
+
+mischungsg '0' (stand 272749, hauptbaum 0, entwstufe 9): WMS colour (255, 255, 255)
+  info: <?xml version='1.0' encoding="UTF-8" standalone="no" ?> <ServiceExceptionReport version="1.3.0" xmlns="http://www.opengis.net/ogc" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xsi:schemaLocation="http://www.opengis.net/ogc http://schemas.opengis.net/wms/1.3.0/exceptions_1_3_0.xsd"> <ServiceException code="LayerNotDefined"> msWMSFeatureInfo(): WMS server error. Layer(s) specified in QUERY_LAYERS parameter is not offered by the service instance. </ServiceException> </ServiceExceptionReport>
+
+mischungsg '1' (stand 291982, hauptbaum 0, entwstufe 8): WMS colour (25, 108, 232)
+  info: <?xml version='1.0' encoding="UTF-8" standalone="no" ?> <ServiceExceptionReport version="1.3.0" xmlns="http://www.opengis.net/ogc" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xsi:schemaLocation="http://www.opengis.net/ogc http://schemas.opengis.net/wms/1.3.0/exceptions_1_3_0.xsd"> <ServiceException code="LayerNotDefined"> msWMSFeatureInfo(): WMS server error. Layer(s) specified in QUERY_LAYERS parameter is not offered by the service instance. </ServiceException> </ServiceExceptionReport>
+
+mischungsg '2' (stand 289699, hauptbaum 0, entwstufe 6): WMS colour (129, 226, 255)
+  info: <?xml version='1.0' encoding="UTF-8" standalone="no" ?> <ServiceExceptionReport version="1.3.0" xmlns="http://www.opengis.net/ogc" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xsi:schemaLocation="http://www.opengis.net/ogc http://schemas.opengis.net/wms/1.3.0/exceptions_1_3_0.xsd"> <ServiceException code="LayerNotDefined"> msWMSFeatureInfo(): WMS server error. Layer(s) specified in QUERY_LAYERS parameter is not offered by the service instance. </ServiceException> </ServiceExceptionReport>
+
+mischungsg '3' (stand 289633, hauptbaum 5, entwstufe 6): WMS colour (172, 255, 129)
+  info: <?xml version='1.0' encoding="UTF-8" standalone="no" ?> <ServiceExceptionReport version="1.3.0" xmlns="http://www.opengis.net/ogc" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xsi:schemaLocation="http://www.opengis.net/ogc http://schemas.opengis.net/wms/1.3.0/exceptions_1_3_0.xsd"> <ServiceException code="LayerNotDefined"> msWMSFeatureInfo(): WMS server error. Layer(s) specified in QUERY_LAYERS parameter is not offered by the service instance. </ServiceException> </ServiceExceptionReport>
+
+mischungsg '4' (stand 290002, hauptbaum 7, entwstufe 7): WMS colour (76, 176, 25)
+  info: <?xml version='1.0' encoding="UTF-8" standalone="no" ?> <ServiceExceptionReport version="1.3.0" xmlns="http://www.opengis.net/ogc" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xsi:schemaLocation="http://www.opengis.net/ogc http://schemas.opengis.net/wms/1.3.0/exceptions_1_3_0.xsd"> <ServiceException code="LayerNotDefined"> msWMSFeatureInfo(): WMS server error. Layer(s) specified in QUERY_LAYERS parameter is not offered by the service instance. </ServiceException> </ServiceExceptionReport>
+
+mischungsg '5' (stand 275441, hauptbaum 0, entwstufe 2): WMS colour (255, 255, 255)
+  info: <?xml version='1.0' encoding="UTF-8" standalone="no" ?> <ServiceExceptionReport version="1.3.0" xmlns="http://www.opengis.net/ogc" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xsi:schemaLocation="http://www.opengis.net/ogc http://schemas.opengis.net/wms/1.3.0/exceptions_1_3_0.xsd"> <ServiceException code="LayerNotDefined"> msWMSFeatureInfo(): WMS server error. Layer(s) specified in QUERY_LAYERS parameter is not offered by the service instance. </ServiceException> </ServiceExceptionReport>
+
+mischungsg '6' (stand 272426, hauptbaum 7, entwstufe 4): WMS colour (255, 255, 255)
+  info: <?xml version='1.0' encoding="UTF-8" standalone="no" ?> <ServiceExceptionReport version="1.3.0" xmlns="http://www.opengis.net/ogc" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xsi:schemaLocation="http://www.opengis.net/ogc http://schemas.opengis.net/wms/1.3.0/exceptions_1_3_0.xsd"> <ServiceException code="LayerNotDefined"> msWMSFeatureInfo(): WMS server error. Layer(s) specified in QUERY_LAYERS parameter is not offered by the service instance. </ServiceException> </ServiceExceptionReport>
+
+mischungsg '7' (stand 289520, hauptbaum 7, entwstufe 4): WMS colour (255, 255, 255)
+  info: <?xml version='1.0' encoding="UTF-8" standalone="no" ?> <ServiceExceptionReport version="1.3.0" xmlns="http://www.opengis.net/ogc" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xsi:schemaLocation="http://www.opengis.net/ogc http://schemas.opengis.net/wms/1.3.0/exceptions_1_3_0.xsd"> <ServiceException code="LayerNotDefined"> msWMSFeatureInfo(): WMS server error. Layer(s) specified in QUERY_LAYERS parameter is not offered by the service instance. </ServiceException> </ServiceExceptionReport>
+
+mischungsg '8' (stand 274677, hauptbaum 0, entwstufe 4): WMS colour (255, 255, 255)
+  info: <?xml version='1.0' encoding="UTF-8" standalone="no" ?> <ServiceExceptionReport version="1.3.0" xmlns="http://www.opengis.net/ogc" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xsi:schemaLocation="http://www.opengis.net/ogc http://schemas.opengis.net/wms/1.3.0/exceptions_1_3_0.xsd"> <ServiceException code="LayerNotDefined"> msWMSFeatureInfo(): WMS server error. Layer(s) specified in QUERY_LAYERS parameter is not offered by the service instance. </ServiceException> </ServiceExceptionReport>
+
+mischungsg '9' (stand 286172, hauptbaum 0, entwstufe 4): WMS colour (255, 255, 255)
+  info: <?xml version='1.0' encoding="UTF-8" standalone="no" ?> <ServiceExceptionReport version="1.3.0" xmlns="http://www.opengis.net/ogc" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xsi:schemaLocation="http://www.opengis.net/ogc http://schemas.opengis.net/wms/1.3.0/exceptions_1_3_0.xsd"> <ServiceException code="LayerNotDefined"> msWMSFeatureInfo(): WMS server error. Layer(s) specified in QUERY_LAYERS parameter is not offered by the service instance. </ServiceException> </ServiceExceptionReport>
+swig/python detected a memory leak of type 'OGRGeometryShadow *', no destructor found.
