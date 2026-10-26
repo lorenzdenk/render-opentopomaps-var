@@ -25,6 +25,11 @@ Thurgau: Mischung der forstlichen Bestandeskarte (Codes 1–4 = 0–10 / 10–50
 `customize_style.py`): Nadelwald 0–10 % #5A93A6, Misch nadelholzreich 10–50 % #73AA92, Misch laubholzreich
 50–90 % #8CBE6C, Laubwald 90–100 % #9CCB55, ohne Angabe #BEDB96. Vorbereitete Raster liegen im Release `prepared-data`.
 
+**Overlay Wanderrouten** (`OVERLAYS="hiking"`): transparente Zusatzkarte (`<name>-hiking.mbtiles`) mit den
+markierten Wanderrouten (OSM-Routenrelationen) im Stil von Waymarked Trails, selbst gerendert, weil Waymarked Trails
+Massen-Downloads seiner Kacheln nicht wünscht. Schweizer Wanderwege nach Markierung: gelb durchgezogen, Bergwanderweg
+gestrichelt, Alpinwanderweg gepunktet (alle rot); sonst national blau, regional orange, lokal violett.
+
 Testregion: `regions/mainau-weinfelden.env` (Quadrat Insel Mainau – Weinfelden, bis z17).
 
 ---

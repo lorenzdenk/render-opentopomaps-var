@@ -55,12 +55,14 @@ s = style_file.read_text()
 for line in ["node,way   locked       text         linear",
              "way        4wd_only     text         linear",
              "way        smoothness   text         linear",
-             "node,way   motor_vehicle text        linear"]:
+             "node,way   motor_vehicle text        linear",
+             "node,way   network      text         linear",
+             "node,way   osmc:symbol  text         linear"]:
     key = line.split()[1]
     if not any(l.split()[1:2] == [key] for l in s.splitlines() if l.strip() and not l.startswith("#")):
         s += line + "\n"
 style_file.write_text(s)
-print("patched: osm2pgsql style (locked, 4wd_only, smoothness, motor_vehicle)")
+print("patched: osm2pgsql style (locked, 4wd_only, smoothness, motor_vehicle, network, osmc:symbol)")
 
 # own symbols
 for svg in (here / "symbols").glob("*.svg"):
@@ -629,6 +631,51 @@ walks_xml = OVERLAY_HEAD + f"""
 """
 (mapnik_dir / "overlay-walks.xml").write_text(walks_xml)
 print("written: overlay-walks.xml")
+
+# hiking: waymarked hiking routes (route relations) in the manner of Waymarked Trails (own rendering from OSM:
+# the Waymarked Trails tile server asks not to download tiles in bulk). Swiss hiking network by its waymarks:
+# yellow (Wanderweg) solid, white-red-white (Bergwanderweg) dashed, white-blue-white (Alpinwanderweg) dotted;
+# other routes by network level: national blue, regional orange, local purple, international dark red.
+HIKE_SQL = one_line("""(SELECT way, name, ref,
+  CASE WHEN "osmc:symbol" LIKE 'yellow:%yellow_diamond%' THEN 'al1'
+       WHEN "osmc:symbol" LIKE 'red:white:red_bar%' THEN 'al2'
+       WHEN "osmc:symbol" LIKE 'blue:white:blue_bar%' THEN 'al4'
+       WHEN network = 'iwn' THEN 'int' WHEN network = 'nwn' THEN 'nat' WHEN network = 'rwn' THEN 'reg'
+       ELSE 'loc' END AS lvl
+  FROM planet_osm_line WHERE osm_id < 0 AND route IN ('hiking', 'foot')
+  ORDER BY CASE network WHEN 'lwn' THEN 1 WHEN 'rwn' THEN 2 WHEN 'nwn' THEN 3 WHEN 'iwn' THEN 4 ELSE 0 END) AS hike""")
+HIKE_COL = {"al1": "#e2001a", "al2": "#e2001a", "al4": "#e2001a", "int": "#a0001a", "nat": "#1f5fd0",
+            "reg": "#f07800", "loc": "#a020c0"}
+HIKE_DASH = {"al2": ' stroke-dasharray="9,5"', "al4": ' stroke-dasharray="2.5,4"'}
+
+
+def hike_rules(zfrom, zto, width, opacity):
+    lim = f"&maxscale_zoom{zfrom};" + (f"&minscale_zoom{zto};" if zto else "")
+    return "".join(f'<Rule>{lim}<Filter>[lvl] = \'{k}\'</Filter><LineSymbolizer stroke="{c}" stroke-width="{width}" '
+                   f'stroke-opacity="{opacity}" stroke-linecap="butt" stroke-linejoin="round"{HIKE_DASH.get(k, "")}/></Rule>'
+                   for k, c in HIKE_COL.items())
+
+
+hiking_xml = OVERLAY_HEAD + f"""
+<Style name="ov-hike" filter-mode="first">
+{hike_rules(9, 11, 1.6, 0.7)}
+{hike_rules(12, 13, 2.6, 0.65)}
+{hike_rules(14, None, 3.6, 0.6)}
+</Style>
+<Style name="ov-hike-ref">
+<Rule>&maxscale_zoom13;<Filter>([lvl] = 'nat' or [lvl] = 'reg' or [lvl] = 'int') and [ref] != ''</Filter>
+<ShieldSymbolizer fontset-name="sans-condensed-bold" size="9" fill="#ffffff" placement="line" spacing="350" repeat-distance="250"
+ file="symbols-otm/hike_shield.svg" unlock-image="true">[ref]</ShieldSymbolizer></Rule>
+<Rule>&maxscale_zoom15;<Filter>([lvl] = 'loc') and [name] != ''</Filter>
+<TextSymbolizer fontset-name="sans-condensed-bold" size="9" fill="#7a1090" halo-radius="1.5" halo-fill="rgba(255,255,255,0.85)"
+ placement="line" spacing="500" repeat-distance="300" max-char-angle-delta="40" dy="8">[name]</TextSymbolizer></Rule>
+</Style>
+{layer("ov-hike", ["ov-hike"], HIKE_SQL)}
+{layer("ov-hike-ref", ["ov-hike-ref"], HIKE_SQL)}
+</Map>
+"""
+(mapnik_dir / "overlay-hiking.xml").write_text(hiking_xml)
+print("written: overlay-hiking.xml")
 
 # walkability from the own TASVEG classification (Einteilung B): hatching
 if TASVEG:
