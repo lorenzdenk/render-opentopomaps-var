@@ -37,14 +37,29 @@ sub() { echo "----- $(date +%H:%M:%S) $*"; }
 # ---------------------------------------------------------------- software
 if [ "${SKIP_APT:-0}" != 1 ]; then
 step "Installing software"
-# a hanging mirror must not block a job for hours: short timeouts, a few retries
+# The Azure Ubuntu mirror of the GitHub runners sometimes stalls in the middle of a download (seen on 5 of 16 jobs):
+# each try is limited to 8 minutes, then the next mirror is used.
 APT_OPTS="-o Acquire::http::Timeout=30 -o Acquire::https::Timeout=30 -o Acquire::Retries=5"
-sudo apt-get $APT_OPTS update -q
-sudo DEBIAN_FRONTEND=noninteractive timeout 20m apt-get $APT_OPTS install -y -q --no-install-recommends \
-  postgresql-16-postgis-3 postgresql-contrib osm2pgsql osmium-tool \
-  gdal-bin python3-gdal libgdal-dev python3-mapnik mapnik-utils \
-  fonts-dejavu-core fonts-dejavu-extra fonts-unifont fonts-noto-core \
-  libdbd-pg-perl bc unzip zip sqlite3 build-essential python3-pil
+APT_PKGS="postgresql-16-postgis-3 postgresql-contrib osm2pgsql osmium-tool
+  gdal-bin python3-gdal libgdal-dev python3-mapnik mapnik-utils
+  fonts-dejavu-core fonts-dejavu-extra fonts-unifont fonts-noto-core
+  libdbd-pg-perl bc unzip zip sqlite3 build-essential python3-pil"
+apt_ok=""
+for mirror in "" archive.ubuntu.com/ubuntu de.archive.ubuntu.com/ubuntu mirror.init7.net/ubuntu; do
+  if [ -n "$mirror" ]; then
+    echo "apt: switching to mirror $mirror"
+    for f in /etc/apt/sources.list /etc/apt/sources.list.d/*.list /etc/apt/sources.list.d/*.sources; do
+      [ -f "$f" ] && sudo sed -i -E "s#https?://[^/ ]+/ubuntu/?( |$)#http://$mirror/\1#g" "$f"
+    done
+  fi
+  sudo timeout 5m apt-get $APT_OPTS update -q || continue
+  # shellcheck disable=SC2086
+  if sudo DEBIAN_FRONTEND=noninteractive timeout 8m apt-get $APT_OPTS install -y -q --no-install-recommends $APT_PKGS; then
+    apt_ok=1; break
+  fi
+  echo "WARN: apt install failed or timed out${mirror:+ (mirror $mirror)}"
+done
+[ -n "$apt_ok" ] || { echo "ERROR: software could not be installed"; exit 1; }
 echo "ttf-mscorefonts-installer msttcorefonts/accepted-mscorefonts-eula select true" | sudo debconf-set-selections
 for pkg in fonts-roboto-unhinted fonts-open-sans ttf-mscorefonts-installer fonts-wine fonts-urw-base35 fonts-texgyre; do   # optional fonts
   sudo DEBIAN_FRONTEND=noninteractive timeout 5m apt-get $APT_OPTS install -y -q --no-install-recommends "$pkg" || echo "WARN: $pkg not available"
