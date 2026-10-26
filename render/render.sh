@@ -48,6 +48,8 @@ apt_ok=""
 for mirror in "" archive.ubuntu.com/ubuntu de.archive.ubuntu.com/ubuntu mirror.init7.net/ubuntu; do
   if [ -n "$mirror" ]; then
     echo "apt: switching to mirror $mirror"
+    # GitHub runners take their mirrors from a mirror list (URIs: mirror+file:/etc/apt/apt-mirrors.txt)
+    [ -f /etc/apt/apt-mirrors.txt ] && echo "http://$mirror/" | sudo tee /etc/apt/apt-mirrors.txt >/dev/null
     for f in /etc/apt/sources.list /etc/apt/sources.list.d/*.list /etc/apt/sources.list.d/*.sources; do
       [ -f "$f" ] && sudo sed -i -E "s#https?://[^/ ]+/ubuntu/?( |$)#http://$mirror/\1#g" "$f"
     done
