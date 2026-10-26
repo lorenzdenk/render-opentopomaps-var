@@ -1,0 +1,42 @@
+render jobs: success
+merging walensee-chur-hiking: 16 of 16 parts
+merged parts/walensee-chur-hiking.part0.mbtiles
+merged parts/walensee-chur-hiking.part1.mbtiles
+merged parts/walensee-chur-hiking.part10.mbtiles
+merged parts/walensee-chur-hiking.part11.mbtiles
+merged parts/walensee-chur-hiking.part12.mbtiles
+merged parts/walensee-chur-hiking.part13.mbtiles
+merged parts/walensee-chur-hiking.part14.mbtiles
+merged parts/walensee-chur-hiking.part15.mbtiles
+merged parts/walensee-chur-hiking.part2.mbtiles
+merged parts/walensee-chur-hiking.part3.mbtiles
+merged parts/walensee-chur-hiking.part4.mbtiles
+merged parts/walensee-chur-hiking.part5.mbtiles
+merged parts/walensee-chur-hiking.part6.mbtiles
+merged parts/walensee-chur-hiking.part7.mbtiles
+merged parts/walensee-chur-hiking.part8.mbtiles
+merged parts/walensee-chur-hiking.part9.mbtiles
+out/walensee-chur-hiking.mbtiles: 48113 tiles, 15812 unique images, 44.6 MB
+merging walensee-chur-otm: 16 of 16 parts
+merged parts/walensee-chur-otm.part0.mbtiles
+merged parts/walensee-chur-otm.part1.mbtiles
+merged parts/walensee-chur-otm.part10.mbtiles
+merged parts/walensee-chur-otm.part11.mbtiles
+merged parts/walensee-chur-otm.part12.mbtiles
+merged parts/walensee-chur-otm.part13.mbtiles
+merged parts/walensee-chur-otm.part14.mbtiles
+merged parts/walensee-chur-otm.part15.mbtiles
+merged parts/walensee-chur-otm.part2.mbtiles
+merged parts/walensee-chur-otm.part3.mbtiles
+merged parts/walensee-chur-otm.part4.mbtiles
+merged parts/walensee-chur-otm.part5.mbtiles
+merged parts/walensee-chur-otm.part6.mbtiles
+merged parts/walensee-chur-otm.part7.mbtiles
+merged parts/walensee-chur-otm.part8.mbtiles
+merged parts/walensee-chur-otm.part9.mbtiles
+out/walensee-chur-otm.mbtiles: 48113 tiles, 47892 unique images, 1630.7 MB
+total 1635988
+drwxr-xr-x 2 runner root         4096 Oct 26 16:02 .
+drwxr-xr-x 4 root   root         4096 Oct 26 16:02 ..
+-rw-r--r-- 1 runner runner   44556288 Oct 26 16:02 walensee-chur-hiking.mbtiles
+-rw-r--r-- 1 runner runner 1630687232 Oct 26 16:03 walensee-chur-otm.mbtiles
